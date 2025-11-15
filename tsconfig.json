@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "jsx": "react-native",
+    "paths": {
+      "~/*": [
+        "./*"
+      ],
+      "@clipo/core": [
+        "./packages/core/src/index"
+      ],
+      "@clipo/core/*": [
+        "./packages/core/src/*"
+      ]
+    }
+  },
+  "include": [
+    "App.tsx",
+    "src/**/*",
+    "packages/core/src/**/*"
+  ],
+  "extends": "expo/tsconfig.base"
+}
