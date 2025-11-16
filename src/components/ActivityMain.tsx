@@ -6,10 +6,9 @@ const ActivityMain: React.FC = () => {
     const insets = useSafeAreaInsets();
     const bottomPadding = Math.max(insets.bottom, 24);
   return (
-    <KeyboardAvoidingView
+    <View
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? bottomPadding : 0}
+   
     >
       <View    style={styles.top}>
 
@@ -18,7 +17,7 @@ const ActivityMain: React.FC = () => {
       <TextInput></TextInput>
       </View>
 
-      </KeyboardAvoidingView>
+      </View>
   );
 };
 
@@ -26,7 +25,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     alignItems: 'center',
-    // justifyContent: 'center',
+    justifyContent: 'center',
     backgroundColor:'yellow'
   },
   in:{

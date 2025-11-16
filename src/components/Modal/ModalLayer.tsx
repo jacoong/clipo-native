@@ -147,7 +147,6 @@ const FullScreenPostModal: React.FC<FullScreenPostModalProps> = ({
               styles.fullScreenContainer,
               {
                 transform: [{ translateY }],
-                height: sheetHeight,
               },
             ]}
           >
@@ -199,12 +198,9 @@ const FullScreenPostModal: React.FC<FullScreenPostModalProps> = ({
                 )}
               </View>
             </View>
-            <KeyboardAvoidingView
-              style={styles.fullScreenContentWrapper}
-              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            >
+      
               <View style={styles.fullScreenContent}>{renderContent ? renderContent() : null}</View>
-            </KeyboardAvoidingView>
+          
           </AnimatedContainer>
         </PanGestureHandler>
       </View>
@@ -434,7 +430,7 @@ const createStyles = (
       justifyContent: 'flex-end',
     },
     fullScreenContainer: {
-      width: '100%',
+      height: '90%',
       borderTopLeftRadius: 28,
       borderTopRightRadius: 28,
       backgroundColor: colors.background,

@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
   FlatList,
   Image,
-  KeyboardAvoidingView,
+    Keyboard,
   Platform,
   ScrollView,
   StyleSheet,
@@ -138,13 +138,6 @@ const extractResponseItems = (payload: any): any[] => {
   return [];
 };
 
-type HighlightSegment = {
-  text: string;
-  type: 'text' | 'mention' | 'hashtag';
-};
-
-const HIGHLIGHT_REGEX = /(@[^\s@#]+|#[^\s@#]+)/g;
-
 const CreatePostReNew: React.FC<CreatePostReNewProps> = ({
   onRequestClose,
   type = 'board',
@@ -163,6 +156,8 @@ const CreatePostReNew: React.FC<CreatePostReNewProps> = ({
   const [editorImages, setEditorImages] = useState<EditorImage[]>([]);
   const [isLikeVisible, setIsLikeVisible] = useState(true);
   const [isReplyAllowed, setIsReplyAllowed] = useState(true);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [suggestionsDismissed, setSuggestionsDismissed] = useState(false);
   const mentionInputRef = useRef<any>(null);
 
   const fetchUserSuggestions = useCallback<SuggestionFetcher>(async (keyword) => {
@@ -286,38 +281,6 @@ const CreatePostReNew: React.FC<CreatePostReNewProps> = ({
     focusEditor();
   }, [focusEditor]);
 
-  const displayValue = mentionState?.plainText ?? content ?? '';
-
-  const previewSegments = useMemo<HighlightSegment[]>(() => {
-    const value = displayValue;
-    if (!value) {
-      return [{ text: '', type: 'text' }];
-    }
-    const segments: HighlightSegment[] = [];
-    let lastIndex = 0;
-    value.replace(HIGHLIGHT_REGEX, (match, _group, offset) => {
-      if (offset > lastIndex) {
-        segments.push({
-          text: value.slice(lastIndex, offset),
-          type: 'text',
-        });
-      }
-      segments.push({
-        text: match,
-        type: match.startsWith('@') ? 'mention' : 'hashtag',
-      });
-      lastIndex = offset + match.length;
-      return match;
-    });
-    if (lastIndex < value.length) {
-      segments.push({
-        text: value.slice(lastIndex),
-        type: 'text',
-      });
-    }
-    return segments.length > 0 ? segments : [{ text: value, type: 'text' }];
-  }, [displayValue]);
-
   useEffect(() => {
     console.log('CreatePostReNew mounted');
     const timeoutId = setTimeout(() => {
@@ -349,6 +312,21 @@ const CreatePostReNew: React.FC<CreatePostReNewProps> = ({
     }));
     setEditorImages(type === 'board' ? seeded : seeded.slice(0, 1));
   }, [original, type]);
+
+    useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, (event) => {
+      setKeyboardHeight(event.endCoordinates?.height ?? 0);
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
 
   const handleToolPress = useCallback(
@@ -389,21 +367,29 @@ const CreatePostReNew: React.FC<CreatePostReNewProps> = ({
   );
 
   // Mentions hook-based config for '@' and '#'
-  const hiddenMentionStyle = useMemo(() => ({ color: 'transparent' }), []);
-  const hiddenHashtagStyle = useMemo(() => ({ color: 'transparent' }), []);
+  const mentionTextStyle = useMemo(
+    () => ({ color: palette.themeColor, fontWeight: '600' }),
+    [palette.themeColor],
+  );
+  const hashtagTextStyle = useMemo(
+    () => ({ color: colors.textPrimary, fontWeight: '600' }),
+    [colors.textPrimary],
+  );
 
   const triggersConfig = useMemo<TriggersConfig<'mention' | 'hashtag'>>(
     () => ({
       mention: {
         trigger: '@',
-        textStyle: hiddenMentionStyle,
+        textStyle: mentionTextStyle,
+        markup: '@__display__',
       },
       hashtag: {
         trigger: '#',
-        textStyle: hiddenHashtagStyle,
+        textStyle: hashtagTextStyle,
+        markup: '#__display__',
       },
     }),
-    [hiddenHashtagStyle, hiddenMentionStyle],
+    [hashtagTextStyle, mentionTextStyle],
   );
 
   const handleMentionChange = useCallback(
@@ -422,6 +408,10 @@ const CreatePostReNew: React.FC<CreatePostReNewProps> = ({
     },
     [triggersConfig],
   );
+
+  useEffect(() => {   
+    console.log(content,'s')
+  }, [content]);
 
   const { textInputProps, triggers, mentionState } = useMentions({
     value: content,
@@ -737,14 +727,26 @@ const CreatePostReNew: React.FC<CreatePostReNewProps> = ({
     : '새로운 소식을 알려주세요';
   const mentionKeyword = triggers.mention?.keyword?.trim() ?? '';
   const hashtagKeyword = triggers.hashtag?.keyword?.trim() ?? '';
-  const showMentionSuggestions = mentionKeyword.length > 0;
-  const showHashtagSuggestions = !showMentionSuggestions && hashtagKeyword.length > 0;
+  const showMentionSuggestions =
+    !suggestionsDismissed && mentionKeyword.length > 0;
+  const showHashtagSuggestions =
+    !suggestionsDismissed && !showMentionSuggestions && hashtagKeyword.length > 0;
+
+  useEffect(() => {
+    if (
+      suggestionsDismissed &&
+      mentionKeyword.length === 0 &&
+      hashtagKeyword.length === 0
+    ) {
+      setSuggestionsDismissed(false);
+    }
+  }, [hashtagKeyword.length, mentionKeyword.length, suggestionsDismissed]);
   const submitLabel = isEditMode ? '편집' : '게시';
   const isCreateDisabled = !content.trim() && editorImages.length === 0;
   const isSubmitDisabled = isEditMode ? isEditPristine : isCreateDisabled;
-  const bottomPadding = Math.max(insets.bottom, 74);
-  const platformbottompadding = Platform.OS === 'ios' ? bottomPadding : 0
-  const contentBottomInset = bottomPadding + 140;
+  const bottomPadding = Math.max(insets.bottom, 12);
+
+
 
   
   const Context_Area = replyTarget ? (
@@ -776,16 +778,12 @@ const CreatePostReNew: React.FC<CreatePostReNewProps> = ({
   ) : null;
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={platformbottompadding}
-    >
+     <View style={styles.container}>
+
       <View style={styles.inner}>
         {Context_Area}
-        <View style={styles.body}>
           <ScrollView
-              contentContainerStyle={[styles.mainContent, { paddingBottom: contentBottomInset }]}
+              contentContainerStyle={[styles.mainContent, { paddingBottom: bottomPadding }]}
               keyboardDismissMode="none"
               keyboardShouldPersistTaps="always"
             >
@@ -803,54 +801,26 @@ const CreatePostReNew: React.FC<CreatePostReNewProps> = ({
 
                 <View style={styles.textField_container}>
                   <View style={styles.inputWrapper}>
-                    <View pointerEvents="none" style={styles.highlightOverlay}>
-                      {displayValue.length === 0 ? (
-                        <Text style={[styles.previewText, { color: colors.placeholder }]}>
-                          {placeholderText}
-                        </Text>
-                      ) : (
-                        <Text style={[styles.previewText, { color: colors.textPrimary }]}>
-                          {previewSegments.map((segment, index) => {
-                            const key = `${segment.type}-${index}`;
-                            if (segment.type === 'mention') {
-                              return (
-                                <Text key={key} style={styles.mentionUser}>
-                                  {segment.text}
-                                </Text>
-                              );
-                            }
-                            if (segment.type === 'hashtag') {
-                              return (
-                                <Text key={key} style={styles.mentionTag}>
-                                  {segment.text}
-                                </Text>
-                              );
-                            }
-                            return <Text key={key}>{segment.text}</Text>;
-                          })}
-                        </Text>
-                      )}
-                    </View>
-                      <TextInput
-                        {...textInputProps}
-                        ref={mentionInputRef}
-                        placeholder=""
-                        style={[styles.input, styles.transparentInput]}
-                        autoFocus
-                        multiline
-                        maxLength={MAX_LENGTH}
-                        caretColor={colors.textPrimary}
-                        selectionColor={palette.themeColor}
-                        returnKeyType="default"
-                        enablesReturnKeyAutomatically
-                        scrollEnabled={false}
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        keyboardAppearance={themeMode === 'dark' ? 'dark' : 'light'}
-                        onBlur={() => mentionInputRef.current?.focus?.()}
-                      />
-                    </View>
+                    <TextInput
+                      {...textInputProps}
+                      ref={mentionInputRef}
+                      placeholder={placeholderText}
+                      placeholderTextColor={colors.placeholder}
+                      style={[styles.input, { color: colors.textPrimary }]}
+                      autoFocus
+                      multiline
+                      maxLength={MAX_LENGTH}
+                      selectionColor={palette.themeColor}
+                      returnKeyType="default"
+                      enablesReturnKeyAutomatically
+                      scrollEnabled={false}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      keyboardAppearance={themeMode === 'dark' ? 'dark' : 'light'}
+                      onBlur={() => mentionInputRef.current?.focus?.()}
+                    />
                   </View>
+                </View>
 
                 {editorImages.length > 0 ? (
                   <ScrollView
@@ -886,7 +856,7 @@ const CreatePostReNew: React.FC<CreatePostReNewProps> = ({
               </View>
             </View>
           </ScrollView>
-          <View style={[styles.footerAvoider, { paddingBottom: bottomPadding }]}>
+          <View style={[styles.footerAvoider, { paddingBottom:Platform.OS === 'ios'?  keyboardHeight :0 }]}>
             <View style={styles.footerRow}>
               <Text style={[styles.charCount, { color: colors.textSecondary }]}>
                 {content.length}/{MAX_LENGTH}
@@ -900,14 +870,28 @@ const CreatePostReNew: React.FC<CreatePostReNewProps> = ({
             </View>
             {(showMentionSuggestions || showHashtagSuggestions) && (
               <View
-                style={[styles.suggestionOverlay, { paddingBottom: bottomPadding + 12 }]}
+                style={[styles.suggestionOverlay, { paddingBottom: Platform.OS === 'ios'?keyboardHeight+bottomPadding + 24  :bottomPadding + 24 }]}
                 pointerEvents="box-none"
               >
                 <View style={styles.overlayListWrapper} pointerEvents="auto">
+                  <TouchableOpacity
+                    style={styles.suggestionCloseButton}
+                    onPress={() => setSuggestionsDismissed(true)}
+                    accessibilityRole="button"
+                    hitSlop={8}
+                  >
+                    <Ionicons name="close" size={15} color={colors.textPrimary} />
+                  </TouchableOpacity>
                   {showMentionSuggestions ? (
                     <MentionSuggestionList
                       keyword={mentionKeyword}
-                      onSelect={(s) => triggers.mention?.onSelect?.({ id: s.id, name: s.name })}
+                      onSelect={(s) => {
+                        const sanitized = s.name.replace(/^@/, '');
+                        triggers.mention?.onSelect?.({
+                          id: s.id,
+                          name: sanitized,
+                        });
+                      }}
                       fetcher={fetchUserSuggestions}
                       type="user"
                     />
@@ -915,7 +899,13 @@ const CreatePostReNew: React.FC<CreatePostReNewProps> = ({
                   {showHashtagSuggestions ? (
                     <MentionSuggestionList
                       keyword={hashtagKeyword}
-                      onSelect={(s) => triggers.hashtag?.onSelect?.({ id: s.id, name: s.name })}
+                      onSelect={(s) => {
+                        const sanitized = s.name.startsWith('#') ? s.name.slice(1) : s.name;
+                        triggers.hashtag?.onSelect?.({
+                          id: s.id,
+                          name: sanitized,
+                        });
+                      }}
                       fetcher={fetchHashTagSuggestions}
                       type="hashtag"
                     />
@@ -923,10 +913,11 @@ const CreatePostReNew: React.FC<CreatePostReNewProps> = ({
                 </View>
               </View>
             )}
-        </View>
+     
       </View>
       </View>
-    </KeyboardAvoidingView>
+       </View>
+
   );
 };
 
@@ -934,10 +925,11 @@ const CreatePostReNew: React.FC<CreatePostReNewProps> = ({
 // We only rely on 'keyword' and 'onSuggestionPress'.
 type MentionSuggestionListProps = {
   keyword?: string;
-  onSelect: (suggestion: any) => void;
+  onSelect: (suggestion: SuggestionItem) => void;
   fetcher: SuggestionFetcher;
   type: 'user' | 'hashtag';
 };
+
 
 const MentionSuggestionList: React.FC<MentionSuggestionListProps> = ({ keyword, onSelect, fetcher, type }) => {
   const { colors, palette } = useAppTheme();
@@ -1110,7 +1102,7 @@ const createStyles = (
   StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: 'yellow',
+      backgroundColor: colors.background,
       position: 'relative',
     },
     inner: {
@@ -1120,10 +1112,6 @@ const createStyles = (
       gap: 20,
       position: 'relative',
       justifyContent: 'space-between',
-    },
-    body: {
-      backgroundColor:'white',
-      // justifyContent: 'space-between',
     },
     context_line_container:{
       position:'absolute',
@@ -1141,12 +1129,10 @@ const createStyles = (
       backgroundColor: palette.themeColor,
     },
     mainContent: {
-      flexGrow: 1,
       paddingBottom: 24,
       rowGap: 20,
     },
     composeRow: {
-      backgroundColor:'red',
       flexDirection: 'row',
       alignItems: 'flex-start',
       gap: 12,
@@ -1174,30 +1160,6 @@ const createStyles = (
       lineHeight: 26,
       textAlignVertical: 'top',
       padding: 0,
-    },
-    highlightOverlay: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      minHeight: MIN_EDITOR_HEIGHT,
-    },
-    transparentInput: {
-      color: 'transparent',
-      textShadowColor: 'transparent',
-    },
-    previewText: {
-      fontSize: 18,
-      lineHeight: 26,
-    },
-    mentionUser: {
-      color: palette.themeColor,
-      fontWeight: '600',
-    },
-    mentionTag: {
-      color: '#3B82F6',
-      fontWeight: '600',
     },
     previewScroll: {
       width: '100%',
@@ -1234,12 +1196,13 @@ const createStyles = (
     },
     footerAvoider: {
       paddingTop: 12,
-      backgroundColor:'blue'
+      width: '100%',
     },
     footerRow: {
+      justifyContent: 'space-between',
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'space-between',
+
     },
     charCount: {
       fontSize: 13,
@@ -1260,6 +1223,18 @@ const createStyles = (
     overlayListWrapper: {
       width: '100%',
       gap: 12,
+      alignItems: 'stretch',
+      position: 'relative',
+      paddingTop: 32,
+    },
+    suggestionCloseButton: {
+      position: 'absolute',
+      top: 23,
+      right: -6,
+      padding: 1,
+      borderRadius: 16,
+            zIndex: 2001,
+      backgroundColor: colors.card,
     },
     replyContext: {  
       flexDirection: 'row',
